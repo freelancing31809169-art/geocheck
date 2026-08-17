@@ -46,6 +46,22 @@ curl -fsSL https://geocheck.ing | sh
 curl -fsSL https://geocheck.ing | sh -s -- -4 --detail
 ```
 
+To pin the runtime instead of letting it choose, name one. It is then a
+requirement rather than a preference: if it is missing the launcher says so
+instead of quietly falling through to the next one.
+
+```sh
+curl -fsSL https://geocheck.ing | sh -s -- --runtime binary   # never a container
+curl -fsSL https://geocheck.ing | sh -s -- --runtime docker
+curl -fsSL https://geocheck.ing | sh -s -- --runtime podman
+
+# Or as an environment variable, which composes better with a wrapper script
+curl -fsSL https://geocheck.ing | GEOCHECK_RUNTIME=binary sh
+```
+
+Launcher options must come first and are not passed on; everything after them
+goes to geocheck. `sh -s -- --launcher-help` lists them.
+
 Prefer to see the command you are running? Straight from Docker Hub:
 
 ```sh

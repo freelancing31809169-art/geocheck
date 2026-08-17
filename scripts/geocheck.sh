@@ -3,6 +3,7 @@ set -eu
 
 IMAGE="${GEOCHECK_IMAGE:-remnawave/geocheck:ing}"
 REPO="${GEOCHECK_REPO:-remnawave/geocheck}"
+RUNTIME="${GEOCHECK_RUNTIME:-auto}"
 
 say() { printf '%s\n' "$*" >&2; }
 die() { printf 'geocheck: %s\n' "$*" >&2; exit 1; }
@@ -107,7 +108,11 @@ run_download() {
     have curl || have wget || die "need curl or wget to download the release"
     have tar || die "need tar to unpack the release"
 
-    say "→ no container runtime; fetching the release binary"
+    if [ "$RUNTIME" = "binary" ]; then
+        say "→ fetching the release binary"
+    else
+        say "→ no container runtime; fetching the release binary"
+    fi
 
     tag=$(fetch "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
         | sed -n 's/.*"tag_name" *: *"\([^"]*\)".*/\1/p' | head -1) || tag=""
@@ -157,7 +162,81 @@ run_download() {
     exit "$status"
 }
 
+usage() {
+    cat >&2 <<'USAGE'
+geocheck launcher
+
+  curl -fsSL https://geocheck.ing | sh
+  curl -fsSL https://geocheck.ing | sh -s -- [launcher options] [geocheck options]
+
+Launcher options, which must come first and are not passed on:
+  --runtime auto      docker, else podman, else the release binary (default)
+  --runtime docker    require docker
+  --runtime podman    require podman
+  --runtime binary    require the release binary, ignoring any container runtime
+  --launcher-help     this text
+
+Environment:
+  GEOCHECK_RUNTIME    same as --runtime
+  GEOCHECK_IMAGE      image to run (default remnawave/geocheck:ing)
+  GEOCHECK_REPO       GitHub repository to download releases from
+  GEOCHECK_KEEP_IMAGE keep an image this run pulled instead of removing it
+
+Everything after the launcher options goes to geocheck itself; run
+`... | sh -s -- --help` for those.
+USAGE
+    exit 0
+}
+
+parse_options() {
+    OPTS_CONSUMED=0
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --runtime=*)
+                RUNTIME=${1#--runtime=}
+                OPTS_CONSUMED=$((OPTS_CONSUMED + 1))
+                shift
+                ;;
+            --runtime)
+                [ $# -ge 2 ] || die "--runtime needs a value: auto, docker, podman or binary"
+                RUNTIME=$2
+                OPTS_CONSUMED=$((OPTS_CONSUMED + 2))
+                shift 2
+                ;;
+            --launcher-help)
+                usage
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+}
+
+require() {
+    have "$1" && return 0
+    die "--runtime $1 was requested but $1 is not installed.
+  Install it, or use --runtime binary to download the release instead."
+}
+
 main() {
+    parse_options "$@"
+    shift "$OPTS_CONSUMED"
+
+    case $RUNTIME in
+        docker | podman)
+            require "$RUNTIME"
+            run_container "$RUNTIME" "$@"
+            ;;
+        binary)
+            run_download "$@"
+            ;;
+        auto) ;;
+        *)
+            die "unknown runtime '$RUNTIME'; use auto, docker, podman or binary"
+            ;;
+    esac
+
     for candidate in docker podman; do
         if have "$candidate"; then
             run_container "$candidate" "$@"

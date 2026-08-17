@@ -230,6 +230,43 @@ jobs:
           }
           echo "  removal targets the exact tag"
 
+      - name: The launcher must honour a forced runtime
+        run: |
+          set -euo pipefail
+
+          dir=$(mktemp -d); mkdir -p "$dir/bin"
+          for b in sh env uname printf clear tput cat head sed cut mktemp tar chmod rm; do
+            src=$(command -v "$b") && ln -sf "$src" "$dir/bin/$b"
+          done
+          printf '#!/bin/sh\necho "DOCKER $*"\n' > "$dir/bin/docker"
+          printf '#!/bin/sh\necho "PODMAN $*"\n' > "$dir/bin/podman"
+          chmod +x "$dir/bin/docker" "$dir/bin/podman"
+
+          expect() {
+            label=$1; want=$2; envs=$3; shift 3
+            set +e
+            # shellcheck disable=SC2086
+            out=$(env PATH="$dir/bin" $envs /bin/sh scripts/geocheck.sh "$@" 2>&1)
+            set -e
+            case "$out" in
+              *"$want"*) echo "  ✓ $label" ;;
+              *) echo "  ✗ $label"; echo "    wanted: $want"; echo "    got:    $out"; exit 1 ;;
+            esac
+          }
+
+          expect "auto picks docker"          "DOCKER run"  ""                      -4
+          expect "--runtime podman"           "PODMAN run"  ""                      --runtime podman -4
+          expect "--runtime=podman"           "PODMAN run"  ""                      --runtime=podman
+          expect "GEOCHECK_RUNTIME=podman"    "PODMAN run"  GEOCHECK_RUNTIME=podman -4
+          expect "the flag beats the variable" "DOCKER run" GEOCHECK_RUNTIME=podman --runtime docker
+          expect "an unknown runtime is refused" "unknown runtime" "" --runtime kubernetes
+          expect "--runtime needs a value"    "needs a value" ""                    --runtime
+
+          rm "$dir/bin/podman"
+          expect "a missing forced runtime errors" "podman is not installed" "" --runtime podman
+
+          expect "geocheck flags pass through" "DOCKER run --rm --cap-add=NET_RAW remnawave/geocheck:ing --json --no-geo" "" --json --no-geo
+
       - name: The launcher must not defer to an installed geocheck
         run: |
           set -euo pipefail

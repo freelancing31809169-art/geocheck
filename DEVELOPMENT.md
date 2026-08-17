@@ -130,6 +130,13 @@ then the release archive for the running platform – downloaded to a temporary
 directory, checksum-verified against the published `checksums.txt`, run, and
 deleted. It installs nothing.
 
+`--runtime auto|docker|podman|binary`, or `GEOCHECK_RUNTIME`, overrides that
+order. Naming one makes it a requirement: a missing runtime is an error rather
+than a fallback, because someone who asked for podman specifically does not want
+docker silently instead. Launcher options are parsed only while they sit at the
+front of the argument list and are removed before the rest is handed to
+geocheck, so a future geocheck flag cannot be swallowed by the launcher.
+
 It deliberately does _not_ prefer a `geocheck` already on PATH. Someone piping
 this script from the network is asking for the current release; deferring to an
 installed copy would silently serve a stale one, missing exactly the fixes the

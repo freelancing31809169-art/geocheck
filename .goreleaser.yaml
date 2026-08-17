@@ -76,7 +76,8 @@ release:
 
     ```sh
     curl -fsSL https://geocheck.ing | sh
-    curl -fsSL https://geocheck.ing | sh -s -- -4 --detail    # with flags
+    curl -fsSL https://geocheck.ing | sh -s -- -4 --detail       # with flags
+    curl -fsSL https://geocheck.ing | sh -s -- --runtime binary  # pin the runtime
     ```
 
     The launcher uses docker, else podman, else it downloads the binary below –
