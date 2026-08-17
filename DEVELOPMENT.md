@@ -121,7 +121,7 @@ neither of the rolling ones.
 | Secret               | Value                                                       |
 | -------------------- | ----------------------------------------------------------- |
 | `DOCKERHUB_USERNAME` | Docker Hub account with push rights to `remnawave/geocheck` |
-| `DOCKERHUB_TOKEN`    | Docker Hub access token, Read & Write                       |
+| `DOCKERHUB_TOKEN`    | Docker Hub access token, Read, Write, Delete                |
 
 ## geocheck.ing
 

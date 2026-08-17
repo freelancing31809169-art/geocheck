@@ -95,6 +95,7 @@ jobs:
             COMMIT=${{ github.sha }}
 
       - name: Update the Docker Hub description
+        id: description
         uses: peter-evans/dockerhub-description@v4
         continue-on-error: true
         with:
@@ -103,3 +104,14 @@ jobs:
           repository: ${{ env.IMAGE }}
           readme-filepath: ./docs/dockerhub.md
           short-description: "Where the internet thinks you are, and how directly you reach it"
+
+      - name: Report a description that did not update
+        if: steps.description.outcome == 'failure'
+        run: |
+          echo "::warning title=Docker Hub description not updated::\
+          The image pushed, but the repository description was left as it was. \
+          DOCKERHUB_TOKEN needs Read, Write, Delete scope - Read & Write pushes \
+          images but cannot rewrite the description - and the account needs Admin \
+          on ${IMAGE}, which belongs to an organisation."
+        env:
+          IMAGE: ${{ env.IMAGE }}
