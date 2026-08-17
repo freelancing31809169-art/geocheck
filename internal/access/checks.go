@@ -185,6 +185,12 @@ func chatGPTApp() Check {
 				return Result{State: StateError, Detail: "request failed", Err: err}
 			}
 			body := resp.Text()
+			if isChallenge(resp.Status, strings.ToLower(body)) {
+				return Result{
+					State:  StateError,
+					Detail: "Cloudflare challenged the request, so availability was never tested",
+				}
+			}
 			switch {
 			case containsFold(body, "disallowed isp"):
 				return Result{
@@ -212,6 +218,75 @@ var claudeUnavailableMarkers = []string{
 	"unfortunately, claude isn&#39;t available here.",
 }
 
+// challengeMarkers identify Cloudflare's interstitial. The first two are the
+// variable names its script sets, which are the most stable part of the page;
+// the rest are the wording, which changes more often.
+var challengeMarkers = []string{
+	"cf_chl_opt",
+	"_cf_chl",
+	"just a moment",
+	"cf-browser-verification",
+	"enable javascript and cookies to continue",
+}
+
+// isChallenge reports whether a response came from Cloudflare's edge rather
+// than from the service behind it.
+//
+// This matters because the challenge is issued before the origin ever sees the
+// request, so its body says nothing about whether the service would serve this
+// region. It is also why the check below tests for it first: the challenge page
+// echoes the requested path back inside its own markup, so a request for
+// /app-unavailable-in-region returns a Cloudflare page containing the string
+// "app-unavailable-in-region" — which would otherwise read as proof of exactly
+// the region block that was never actually established.
+func isChallenge(status int, lowerBody string) bool {
+	switch status {
+	case 403, 429, 503:
+	default:
+		return false
+	}
+	for _, m := range challengeMarkers {
+		if strings.Contains(lowerBody, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// classifyClaude turns one response into a verdict. It is separate from the
+// request so the decision can be tested against captured pages.
+func classifyClaude(status int, body, region string) Result {
+	lower := strings.ToLower(body)
+
+	if isChallenge(status, lower) {
+		return Result{
+			State: StateError, Region: region,
+			Detail: "Cloudflare challenged the request, so availability was never tested",
+		}
+	}
+	for _, marker := range claudeUnavailableMarkers {
+		if strings.Contains(lower, marker) {
+			return Result{State: StateBlocked, Region: region, Detail: "not available in this region"}
+		}
+	}
+	if status == 403 {
+		// Refused, but without the page that would attribute it to geography.
+		// Reporting "blocked" here would state as fact something the response
+		// does not show, so this stays an unknown.
+		return Result{
+			State: StateError, Region: region,
+			Detail: "HTTP 403 without the region page, so the cause is unknown",
+		}
+	}
+	if status >= 200 && status < 400 {
+		return Result{State: StateAvailable, Region: region}
+	}
+	return Result{
+		State: StateError, Region: region,
+		Detail: "unexpected HTTP " + itoa(status),
+	}
+}
+
 func claude() Check {
 	return Check{
 		ID: "claude_access", Name: "Claude",
@@ -222,36 +297,19 @@ func claude() Check {
 				URL:       "https://claude.ai/",
 				UserAgent: browserUA,
 				Headers: map[string]string{
-					"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+					"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+					"Accept-Language":           "en-US,en;q=0.9",
+					"Sec-Fetch-Dest":            "document",
+					"Sec-Fetch-Mode":            "navigate",
+					"Sec-Fetch-Site":            "none",
+					"Sec-Fetch-User":            "?1",
+					"Upgrade-Insecure-Requests": "1",
 				},
 			})
 			if err != nil {
 				return Result{State: StateError, Region: region, Detail: "request failed", Err: err}
 			}
-
-			body := strings.ToLower(resp.Text())
-			for _, marker := range claudeUnavailableMarkers {
-				if strings.Contains(body, marker) {
-					return Result{State: StateBlocked, Region: region, Detail: "not available in this region"}
-				}
-			}
-			if resp.Status == 403 {
-				// The refusal page was not present, so the 403 is ambiguous:
-				// claude.ai sits behind Cloudflare, which also returns 403 to
-				// clients it takes for bots. Say so rather than reporting a
-				// region block that may not exist.
-				return Result{
-					State: StateBlocked, Region: region,
-					Detail: "HTTP 403 without the region page; may be bot protection, not geography",
-				}
-			}
-			if resp.Status >= 200 && resp.Status < 400 {
-				return Result{State: StateAvailable, Region: region}
-			}
-			return Result{
-				State: StateError, Region: region,
-				Detail: "unexpected HTTP " + itoa(resp.Status),
-			}
+			return classifyClaude(resp.Status, resp.Text(), region)
 		},
 	}
 }
