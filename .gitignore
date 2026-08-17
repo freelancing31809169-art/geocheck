@@ -1,0 +1,11 @@
+/geochecker
+/dist/
+coverage.out
+coverage.html
+
+.DS_Store
+.idea/
+.vscode/
+web/dist/
+web/node_modules/
+.wrangler/
