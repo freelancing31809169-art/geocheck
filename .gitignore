@@ -1,4 +1,4 @@
-/geochecker
+/geocheck
 /dist/
 coverage.out
 coverage.html
@@ -9,3 +9,4 @@ coverage.html
 web/dist/
 web/node_modules/
 .wrangler/
+.vhs-bin/

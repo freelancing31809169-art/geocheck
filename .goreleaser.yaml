@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: geocheck
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: geocheck
+    main: ./cmd/geocheck
+    binary: geocheck
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - -s -w
+      - -X github.com/remnawave/geocheck/internal/version.Version={{ .Version }}
+      - -X github.com/remnawave/geocheck/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/remnawave/geocheck/internal/version.Date={{ .CommitDate }}
+
+universal_binaries:
+  - id: geocheck
+    ids: [geocheck]
+    replace: true
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+
+  format: "[`{{ slice .SHA 0 7 }}`](https://github.com/remnawave/geocheck/commit/{{ .SHA }}) {{ .Message }}{{ with .Logins }} – {{ . | englishJoin }}{{ end }}"
+
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Other
+      order: 99
+  filters:
+    exclude:
+      - '^.*?docs(\(.+\))??!?:'
+      - '^.*?test(\(.+\))??!?:'
+      - '^.*?chore(\(.+\))??!?:'
+      - '^.*?build(\(.+\))??!?:'
+      - '^.*?ci(\(.+\))??!?:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  footer: |
+    ## Running it
+
+    **One command, nothing installed:**
+
+    ```sh
+    curl -fsSL https://geocheck.ing | sh
+    curl -fsSL https://geocheck.ing | sh -s -- -4 --detail    # with flags
+    ```
+
+    The launcher uses docker, else podman, else it downloads the binary below –
+    verifying its checksum – into a temporary directory. It always runs the
+    current release, installs nothing, and tidies up after itself: an image it
+    pulled is removed again, and a downloaded binary is deleted. An image you
+    already had is left alone. Set `GEOCHECK_KEEP_IMAGE=1` to keep the pulled
+    image so later runs start instantly.
+
+    **Straight from Docker Hub:**
+
+    ```sh
+    docker pull remnawave/geocheck:ing && docker run --rm -it --network host remnawave/geocheck:ing
+    ```
+
+    Under podman add `--cap-add=NET_RAW`: docker grants that capability by
+    default and podman does not, and without it the path trace degrades to
+    latency only.
+
+    **As a binary** – download the archive for your platform from the assets
+    below, or build it:
+
+    ```sh
+    go install github.com/remnawave/geocheck/cmd/geocheck@{{ .Tag }}
+    ```
+
+    Hop-by-hop tracing needs a raw socket. The container image already carries
+    the capability; for a plain binary, grant it once with
+    `sudo setcap cap_net_raw+p ./geocheck` on Linux, or run with `sudo` on
+    macOS. Without it geocheck still measures destination latency over TCP and
+    says so.

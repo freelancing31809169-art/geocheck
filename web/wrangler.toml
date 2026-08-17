@@ -1,0 +1,10 @@
+name = "geocheck"
+main = "dist/worker.js"
+compatibility_date = "2026-08-01"
+
+routes = [
+  { pattern = "geocheck.ing", custom_domain = true },
+  { pattern = "www.geocheck.ing", custom_domain = true },
+]
+
+workers_dev = false

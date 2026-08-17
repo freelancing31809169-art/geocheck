@@ -1,0 +1,9 @@
+.git
+.github
+dist
+geocheck
+coverage.out
+*.md
+!README.md
+.goreleaser.yaml
+Makefile
