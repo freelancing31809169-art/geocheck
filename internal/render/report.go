@@ -11,6 +11,7 @@ import (
 	lg "charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
 	"github.com/remnawave/geocheck/internal/access"
+	"github.com/remnawave/geocheck/internal/ai"
 	"github.com/remnawave/geocheck/internal/countries"
 	"github.com/remnawave/geocheck/internal/detect"
 	"github.com/remnawave/geocheck/internal/geo"
@@ -34,6 +35,7 @@ type Report struct {
 	ReputationErr error
 	Portal        []portal.Result
 	Access        []access.Result
+	AI            []ai.Result
 	Trace         []*mtr.Report
 	TraceCap      mtr.Capability
 	Duration      time.Duration
@@ -121,6 +123,10 @@ func (o *Output) Print(r Report) {
 
 	if len(r.Access) > 0 {
 		o.accessTable(r)
+	}
+
+	if len(r.AI) > 0 {
+		o.aiTable(r)
 	}
 
 	o.footer(r)
@@ -688,6 +694,65 @@ func (o *Output) accessTable(r Report) {
 		o.line("  %s", strings.Join(parts, t.Muted.Render(" · ")))
 	}
 	o.line("")
+}
+
+// aiTable reports what the model providers' APIs said. The verdict column
+// reads "reachable" rather than "available" on purpose: no credentials are
+// sent, so the check proves the endpoint answered and did not refuse the
+// region, and claims nothing about whether a real request would succeed.
+func (o *Output) aiTable(r Report) {
+	t := o.Theme
+	o.section("AI endpoints")
+
+	rows := make([][]string, 0, len(r.AI))
+	for _, res := range r.AI {
+		status := "—"
+		if res.Status > 0 {
+			status = strconv.Itoa(res.Status)
+		}
+		rows = append(rows, []string{
+			res.Check.Name,
+			o.aiStateCell(res.State),
+			t.Muted.Render(status),
+			t.Muted.Render(clip(res.Detail, 46)),
+			o.aiTimeCell(res),
+		})
+	}
+	o.line("%s", o.table([]string{"Endpoint", "Status", "HTTP", "Detail", "Time"}, rows))
+
+	s := ai.Summarize(r.AI)
+	var parts []string
+	add := func(n int, label string, style lg.Style) {
+		if n > 0 {
+			parts = append(parts, style.Render(fmt.Sprintf("%d %s", n, label)))
+		}
+	}
+	add(s.Reachable, "reachable", t.Good)
+	add(s.Blocked, "blocked", t.Bad)
+	add(s.Failed, "inconclusive", t.Muted)
+	if len(parts) > 0 {
+		o.line("  %s", strings.Join(parts, t.Muted.Render(" · ")))
+	}
+	o.line("")
+}
+
+func (o *Output) aiStateCell(s ai.State) string {
+	t := o.Theme
+	switch s {
+	case ai.StateReachable:
+		return t.Good.Render("● reachable")
+	case ai.StateBlocked:
+		return t.Bad.Render("● blocked")
+	default:
+		return t.Muted.Render("○ error")
+	}
+}
+
+func (o *Output) aiTimeCell(res ai.Result) string {
+	if res.RTT <= 0 {
+		return o.Theme.Muted.Render("—")
+	}
+	return o.rttCell(res.RTT)
 }
 
 func (o *Output) accessStateCell(s access.State) string {

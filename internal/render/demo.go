@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/remnawave/geocheck/internal/access"
+	"github.com/remnawave/geocheck/internal/ai"
 	"github.com/remnawave/geocheck/internal/asn"
 	"github.com/remnawave/geocheck/internal/geo"
 	"github.com/remnawave/geocheck/internal/mtr"
@@ -34,6 +35,7 @@ func DemoReport(version string) Report {
 		Geo:      demoGeo(),
 		Portal:   demoPortal(),
 		Access:   demoAccess(),
+		AI:       demoAI(),
 		Trace:    demoTrace(),
 		TraceCap: mtr.Capability{ICMP: true, Raw: true, PathVisible: true},
 		Duration: 6*time.Second + 200*time.Millisecond,
@@ -154,6 +156,27 @@ func demoAccess() []access.Result {
 			res.State, res.Detail, res.Region = access.StateRestricted, "Originals only", ""
 		case 4:
 			res.State, res.Detail, res.Region = access.StateBlocked, "Disallowed ISP", ""
+		}
+		out = append(out, res)
+	}
+	return out
+}
+
+// demoAI answers every real endpoint. One is refused so the blocked state is
+// visible; the rest answer with the authentication error that proves the
+// request arrived.
+func demoAI() []ai.Result {
+	checks := ai.Checks()
+	out := make([]ai.Result, 0, len(checks))
+	for i, c := range checks {
+		res := ai.Result{
+			Check: c, State: ai.StateReachable, Status: 401,
+			Detail: "answered, credentials not supplied",
+			RTT:    time.Duration(60+21*i) * time.Millisecond,
+		}
+		if i%7 == 3 {
+			res.State, res.Status = ai.StateBlocked, 403
+			res.Detail = "the API refused this region"
 		}
 		out = append(out, res)
 	}

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/remnawave/geocheck/internal/access"
+	"github.com/remnawave/geocheck/internal/ai"
 	"github.com/remnawave/geocheck/internal/asn"
 	"github.com/remnawave/geocheck/internal/detect"
 	"github.com/remnawave/geocheck/internal/geo"
@@ -41,6 +42,7 @@ type options struct {
 	noDetect bool
 	noPortal bool
 	noAccess bool
+	noAI     bool
 	noRep    bool
 	repKey   string
 	portals  string
@@ -129,6 +131,7 @@ func parse(args []string) (*options, error) {
 	bind(&o.noDetect, false, "skip the tunnel and DNS interception checks", "no-detect")
 	bind(&o.noPortal, false, "skip the captive-portal connectivity checks", "no-portal")
 	bind(&o.noAccess, false, "skip the Stash service-availability checks", "no-access")
+	bind(&o.noAI, false, "skip the AI endpoint reachability checks", "no-ai")
 	bind(&o.noRep, false, "skip the proxycheck.io address reputation lookup", "no-reputation")
 	bindStr(&o.repKey, os.Getenv("PROXYCHECK_API_KEY"), "proxycheck.io API key (raises the daily allowance to 1000)", "proxycheck-key")
 	bindStr(&o.portals, "default", "connectivity-check set: a tag, an id, or 'all'", "portal")
@@ -191,6 +194,7 @@ Options:
       --portal SET        connectivity-check set: %s, all, or an id
       --no-portal         skip the captive-portal connectivity checks
       --no-access         skip the Stash service-availability checks
+      --no-ai             skip the AI endpoint reachability checks
       --no-reputation     skip the proxycheck.io address reputation lookup
       --proxycheck-key K  proxycheck.io API key ($PROXYCHECK_API_KEY)
       --no-rdns           skip reverse DNS for hops
@@ -283,6 +287,9 @@ func runDemo(o *options) error {
 	if o.noAccess {
 		report.Access = nil
 	}
+	if o.noAI {
+		report.AI = nil
+	}
 	if o.noRep {
 		report.Reputation = nil
 	}
@@ -337,6 +344,7 @@ func run(ctx context.Context, o *options) error {
 		results  []geo.Result
 		portals  []portal.Result
 		accesses []access.Result
+		aiRes    []ai.Result
 		rep      *reputation.Info
 		repErr   error
 		traces   []*mtr.Report
@@ -376,6 +384,14 @@ func run(ctx context.Context, o *options) error {
 		go func() {
 			defer wg.Done()
 			accesses = access.Run(ctx, stack, families[0], access.Checks(), 6)
+		}()
+	}
+
+	if !o.noAI {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			aiRes = ai.Run(ctx, stack, families[0], ai.Checks(), 6)
 		}()
 	}
 
@@ -429,6 +445,7 @@ func run(ctx context.Context, o *options) error {
 		Geo:           results,
 		Portal:        portals,
 		Access:        accesses,
+		AI:            aiRes,
 		Reputation:    rep,
 		ReputationErr: repErr,
 		Trace:         traces,

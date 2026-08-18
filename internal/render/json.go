@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/remnawave/geocheck/internal/access"
+
 	"github.com/remnawave/geocheck/internal/countries"
 	"github.com/remnawave/geocheck/internal/detect"
 	"github.com/remnawave/geocheck/internal/geo"
@@ -33,6 +34,7 @@ type jsonReport struct {
 	Geo        map[string]any  `json:"geo,omitempty"`
 	Portal     *jsonPortal     `json:"connectivity_checks,omitempty"`
 	Access     []jsonAccess    `json:"stash_checks,omitempty"`
+	AI         []jsonAI        `json:"ai_endpoints,omitempty"`
 	Path       *jsonPathReport `json:"connectivity,omitempty"`
 	Image      *jsonImage      `json:"image,omitempty"`
 }
@@ -146,6 +148,17 @@ type jsonPortalItem struct {
 	RTTMS    float64 `json:"rtt_ms,omitempty"`
 	Detail   string  `json:"detail,omitempty"`
 	Error    string  `json:"error,omitempty"`
+}
+
+type jsonAI struct {
+	ID     string  `json:"id"`
+	Name   string  `json:"name"`
+	Vendor string  `json:"vendor,omitempty"`
+	State  string  `json:"state"`
+	Status int     `json:"http_status,omitempty"`
+	Detail string  `json:"detail,omitempty"`
+	RTTMS  float64 `json:"rtt_ms,omitempty"`
+	Error  string  `json:"error,omitempty"`
 }
 
 type jsonAccess struct {
@@ -279,6 +292,21 @@ func JSON(w io.Writer, r Report, findings []detect.Finding, now time.Time) error
 
 	if len(r.Access) > 0 {
 		out.Access = jsonAccessReport(r.Access)
+	}
+
+	if len(r.AI) > 0 {
+		out.AI = make([]jsonAI, 0, len(r.AI))
+		for _, x := range r.AI {
+			item := jsonAI{
+				ID: x.Check.ID, Name: x.Check.Name, Vendor: x.Check.Vendor,
+				State: x.State.String(), Status: x.Status, Detail: x.Detail,
+				RTTMS: round2(ms(x.RTT)),
+			}
+			if x.Err != nil {
+				item.Error = x.Err.Error()
+			}
+			out.AI = append(out.AI, item)
+		}
 	}
 
 	if len(r.Trace) > 0 {
