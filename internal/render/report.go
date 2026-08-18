@@ -172,11 +172,21 @@ func (o *Output) line(format string, args ...any) {
 	fmt.Fprintf(o.W, format+"\n", args...)
 }
 
+const (
+	projectURL      = "github.com/remnawave/geocheck"
+	projectShortURL = "geocheck.ing/git"
+)
+
 func (o *Output) banner(r Report) {
 	t := o.Theme
 	o.line("")
 	o.line("  %s %s", t.Title.Render("geocheck"), t.Muted.Render(r.Version))
 	o.line("  %s", t.Subtitle.Render("where the internet thinks you are, and how directly you reach it"))
+	o.line("  %s %s %s %s",
+		t.Muted.Render("↗"),
+		t.Accent.Render(projectURL),
+		t.Muted.Render("·"),
+		t.Accent.Render(projectShortURL))
 	o.line("")
 }
 

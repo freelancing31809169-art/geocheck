@@ -99,6 +99,10 @@ export default {
       return scriptResponse();
     }
 
+    if (url.pathname === "/git" || url.pathname === "/git/") {
+      return Response.redirect(REPO, 301);
+    }
+
     if (url.pathname !== "/") {
       return Response.redirect(new URL("/", url).toString(), 302);
     }
