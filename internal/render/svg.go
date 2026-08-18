@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 
 	lg "charm.land/lipgloss/v2"
@@ -28,7 +27,7 @@ const (
 	svgPadY      = 20.0
 	svgBaseline  = svgFontSize * 1.02 // first baseline below the top padding
 	svgRadius    = 10.0
-	svgBackplate = "#14141c"
+	svgBackplate = "#161b22"
 )
 
 // SVG writes the report as a self-contained SVG: fonts embedded, no external
@@ -39,7 +38,7 @@ const (
 // would drift from the first the moment either changed, and the point of the
 // picture is to show what the terminal showed.
 func SVG(w io.Writer, r Report, findings []detect.Finding) error {
-	lines := ansiLines(renderANSI(r, findings))
+	lines := pairGeoTables(ansiLines(renderANSI(r, findings)))
 
 	cols := 0
 	for _, line := range lines {
@@ -129,11 +128,24 @@ func fontFace(path string, weight int) (string, error) {
 }
 
 // renderANSI produces the report exactly as a colour terminal would receive it.
+func svgPalette() palette {
+	return palette{
+		fg:     lg.Color("#c9d1d9"),
+		muted:  lg.Color("#8b949e"),
+		accent: lg.Color("#54aeff"),
+		good:   lg.Color("#aceebb"),
+		warn:   lg.Color("#fae17d"),
+		bad:    lg.Color("#ff7b72"),
+		info:   lg.Color("#ffb77c"),
+		rule:   lg.Color("#30363d"),
+	}
+}
+
 func renderANSI(r Report, findings []detect.Finding) string {
 	var buf bytes.Buffer
 	o := &Output{
 		W:     &buf,
-		Theme: newTheme(lg.LightDark(true)),
+		Theme: themeFrom(svgPalette()),
 		Color: true,
 		Width: 115,
 	}
@@ -142,143 +154,11 @@ func renderANSI(r Report, findings []detect.Finding) string {
 	return buf.String()
 }
 
-// svgRun is a stretch of text sharing one style, starting at a column.
-type svgRun struct {
-	col  int
-	text string
-	bold bool
-	fg   [3]uint8
-	// hasFG distinguishes "no colour set" from "black", which matters because
-	// the default has to come from the theme rather than from zero values.
-	hasFG bool
-}
-
-func (r svgRun) colour() string {
+func (r textRun) colour() string {
 	if !r.hasFG {
-		return "#e6e6e6"
+		return "#c9d1d9"
 	}
 	return fmt.Sprintf("#%02x%02x%02x", r.fg[0], r.fg[1], r.fg[2])
-}
-
-type svgLine struct {
-	runs []svgRun
-}
-
-func (l svgLine) width() int {
-	n := 0
-	for _, r := range l.runs {
-		if end := r.col + len([]rune(r.text)); end > n {
-			n = end
-		}
-	}
-	return n
-}
-
-// ansiLines turns a rendered report into positioned, styled runs.
-//
-// Only three sequences ever reach here — reset, a truecolor foreground, and
-// the same with bold — because that is all the theme emits. Anything else is
-// skipped rather than drawn, so an unrecognised sequence loses styling instead
-// of appearing as literal text in the picture.
-func ansiLines(s string) []svgLine {
-	var (
-		lines []svgLine
-		cur   svgLine
-		buf   strings.Builder
-		col   int
-		state svgRun
-	)
-
-	flush := func() {
-		if buf.Len() == 0 {
-			return
-		}
-		run := state
-		run.col = col
-		run.text = buf.String()
-		cur.runs = append(cur.runs, run)
-		col += len([]rune(run.text))
-		buf.Reset()
-	}
-
-	runes := []rune(s)
-	for i := 0; i < len(runes); i++ {
-		switch {
-		case runes[i] == '\n':
-			flush()
-			lines = append(lines, cur)
-			cur, col = svgLine{}, 0
-
-		case runes[i] == 0x1b && i+1 < len(runes) && runes[i+1] == '[':
-			// Scan to the final byte of the CSI sequence. Parameter and
-			// intermediate bytes are 0x20-0x3F, the final byte 0x40-0x7E.
-			// The whole sequence is consumed even when it is not one we act
-			// on: skipping only the escape would spill the parameters into
-			// the picture as text.
-			end := i + 2
-			for end < len(runes) && runes[end] >= 0x20 && runes[end] <= 0x3F {
-				end++
-			}
-			flush()
-			if end < len(runes) && runes[end] == 'm' {
-				state = applySGR(state, string(runes[i+2:end]))
-			}
-			i = end
-
-		default:
-			buf.WriteRune(runes[i])
-		}
-	}
-	flush()
-	if len(cur.runs) > 0 {
-		lines = append(lines, cur)
-	}
-
-	// A trailing blank line adds height and nothing else.
-	for len(lines) > 0 && len(lines[len(lines)-1].runs) == 0 {
-		lines = lines[:len(lines)-1]
-	}
-	return lines
-}
-
-func applySGR(state svgRun, params string) svgRun {
-	if params == "" || params == "0" {
-		return svgRun{}
-	}
-	fields := strings.Split(params, ";")
-	for i := 0; i < len(fields); i++ {
-		switch fields[i] {
-		case "0":
-			state = svgRun{}
-		case "1":
-			state.bold = true
-		case "22":
-			state.bold = false
-		case "39":
-			state.hasFG = false
-		case "38":
-			// 38;2;r;g;b is the only form the theme produces.
-			if i+4 < len(fields) && fields[i+1] == "2" {
-				r, _ := strconv.Atoi(fields[i+2])
-				g, _ := strconv.Atoi(fields[i+3])
-				b, _ := strconv.Atoi(fields[i+4])
-				state.fg = [3]uint8{clamp8(r), clamp8(g), clamp8(b)}
-				state.hasFG = true
-				i += 4
-			}
-		}
-	}
-	return state
-}
-
-func clamp8(v int) uint8 {
-	switch {
-	case v < 0:
-		return 0
-	case v > 255:
-		return 255
-	}
-	return uint8(v)
 }
 
 func xmlEscape(b *bytes.Buffer, s string) {

@@ -1,8 +1,10 @@
 package render
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -95,7 +97,41 @@ func wrap(s string, width int) string {
 }
 
 // Print writes the whole human-readable report.
+//
+// The three geolocation tables are narrow, so when the terminal is wide enough
+// they are laid out in two columns rather than stacked. The report already
+// needs 115 columns for its widest table, and pairing needs 122, so this asks
+// for very little more than it asked for already — and only takes it when the
+// terminal actually has it.
+//
+// The check is against the measured width of those tables rather than a fixed
+// number, so a table growing a column cannot quietly push the layout past what
+// fits.
 func (o *Output) Print(r Report) {
+	if text, ok := o.pairedReport(r); ok {
+		_, _ = io.WriteString(o.W, text)
+		return
+	}
+	o.printStacked(r)
+}
+
+// pairedReport renders the report, pairs the geolocation tables, and reports
+// whether the result fits. It renders into a buffer first because the decision
+// needs the tables' widths, which are only known once they are drawn.
+func (o *Output) pairedReport(r Report) (string, bool) {
+	var buf bytes.Buffer
+	inner := &Output{W: &buf, Theme: o.Theme, Color: o.Color, Width: o.Width}
+	inner.printStacked(r)
+
+	lines := ansiLines(buf.String())
+	paired, ok := pairGeoTablesWithin(lines, o.Width)
+	if !ok {
+		return "", false
+	}
+	return ansiText(paired), true
+}
+
+func (o *Output) printStacked(r Report) {
 	o.banner(r)
 	o.identity(r)
 

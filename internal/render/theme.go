@@ -2,6 +2,7 @@
 package render
 
 import (
+	"image/color"
 	"io"
 	"os"
 	"strconv"
@@ -99,17 +100,26 @@ func backgroundIsDark() bool {
 	return bg <= 6 || bg == 8
 }
 
+type palette struct {
+	fg, muted, accent, good, warn, bad, info, rule color.Color
+}
+
 func newTheme(ld lg.LightDarkFunc) Theme {
-	var (
-		fg     = ld(lg.Color("#1a1a1a"), lg.Color("#e6e6e6"))
-		muted  = ld(lg.Color("#6b6b6b"), lg.Color("#8a8a8a"))
-		accent = ld(lg.Color("#7b3fe4"), lg.Color("#b19cff"))
-		good   = ld(lg.Color("#1f8a44"), lg.Color("#5ee08a"))
-		warn   = ld(lg.Color("#a86800"), lg.Color("#f5c453"))
-		bad    = ld(lg.Color("#c02020"), lg.Color("#ff7b72"))
-		info   = ld(lg.Color("#0a6b96"), lg.Color("#6fd3f7"))
-		rule   = ld(lg.Color("#c8c8c8"), lg.Color("#454545"))
-	)
+	return themeFrom(palette{
+		fg:     ld(lg.Color("#1a1a1a"), lg.Color("#e6e6e6")),
+		muted:  ld(lg.Color("#6b6b6b"), lg.Color("#8a8a8a")),
+		accent: ld(lg.Color("#7b3fe4"), lg.Color("#b19cff")),
+		good:   ld(lg.Color("#1f8a44"), lg.Color("#5ee08a")),
+		warn:   ld(lg.Color("#a86800"), lg.Color("#f5c453")),
+		bad:    ld(lg.Color("#c02020"), lg.Color("#ff7b72")),
+		info:   ld(lg.Color("#0a6b96"), lg.Color("#6fd3f7")),
+		rule:   ld(lg.Color("#c8c8c8"), lg.Color("#454545")),
+	})
+}
+
+func themeFrom(p palette) Theme {
+	fg, muted, accent := p.fg, p.muted, p.accent
+	good, warn, bad, info, rule := p.good, p.warn, p.bad, p.info, p.rule
 
 	return Theme{
 		Title:     lg.NewStyle().Bold(true).Foreground(accent),

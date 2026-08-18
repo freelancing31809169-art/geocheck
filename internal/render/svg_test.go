@@ -126,10 +126,10 @@ func TestANSIParsing(t *testing.T) {
 		bold  bool
 		color string
 	}{
-		{"plain text", "hello", "hello", false, "#e6e6e6"},
+		{"plain text", "hello", "hello", false, "#c9d1d9"},
 		{"truecolor", "\x1b[38;2;94;224;138mgreen\x1b[m", "green", false, "#5ee08a"},
 		{"bold truecolor", "\x1b[1;38;2;177;156;255mtitle\x1b[m", "title", true, "#b19cff"},
-		{"unknown sequence is dropped", "\x1b[999Xtext", "text", false, "#e6e6e6"},
+		{"unknown sequence is dropped", "\x1b[999Xtext", "text", false, "#c9d1d9"},
 	}
 
 	for _, c := range cases {
