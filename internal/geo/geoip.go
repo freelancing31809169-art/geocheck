@@ -40,7 +40,7 @@ var geoIPProviders = []apiProvider{
 	},
 	{
 		id: "ipinfo", name: "ipinfo.io",
-		url: "https://ipinfo.io/widget/demo/{ip}", path: "data.country",
+		url: "https://ipinfo.io/{ip}/json", path: "country",
 		v6OverV4: true,
 	},
 	{
@@ -52,6 +52,8 @@ var geoIPProviders = []apiProvider{
 	{
 		id: "ipapi_co", name: "ipapi.co",
 		url: "https://ipapi.co/{ip}/json", path: "country",
+		headers:  map[string]string{"Referer": "https://ipapi.co/"},
+		v6OverV4: true,
 	},
 	{
 		id: "country_is", name: "country.is",
@@ -68,7 +70,8 @@ var geoIPProviders = []apiProvider{
 	},
 	{
 		id: "ipapi_is", name: "ipapi.is",
-		url: "https://api.ipapi.is/?q={ip}", path: "location.country_code",
+		url: "https://api.ipapi.is/?q={ip}", path: "cc",
+		v6OverV4: true,
 	},
 	{
 		id: "ipbase", name: "ipbase.com",

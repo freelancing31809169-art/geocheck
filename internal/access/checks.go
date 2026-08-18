@@ -10,7 +10,7 @@ import (
 )
 
 const browserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-	"(KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+	"(KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"
 
 // Checks returns the service-availability probes, in display order.
 func Checks() []Check {
