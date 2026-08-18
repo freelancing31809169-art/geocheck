@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/netip"
 	"os"
 	"os/signal"
@@ -54,6 +55,7 @@ type options struct {
 	demo     bool
 	svgOut   string
 	svgB64   bool
+	svgURI   bool
 }
 
 // Run executes the tool and returns a process exit code.
@@ -141,6 +143,7 @@ func parse(args []string) (*options, error) {
 	bind(&o.demo, false, "render a sample report from invented data", "demo")
 	bindStr(&o.svgOut, "", "write the report as an SVG to a file, or - for stdout", "svg")
 	bind(&o.svgB64, false, "write the report as a base64-encoded SVG to stdout", "svg-base64")
+	bind(&o.svgURI, false, "write the report as a data: URI, ready to paste into an <img>", "svg-data-uri")
 
 	fs.Usage = usage
 	if err := fs.Parse(args); err != nil {
@@ -151,6 +154,11 @@ func parse(args []string) (*options, error) {
 	}
 	if o.timeout <= 0 {
 		return nil, errors.New("timeout must be positive")
+	}
+	if o.jsonOut && o.svgOut == "-" {
+		return nil, errors.New(
+			"--json and --svg - would both write to stdout, and two documents in one stream cannot be parsed.\n" +
+				"  Use --svg-base64 to carry the picture inside the JSON, or give --svg a file path")
 	}
 	return o, nil
 }
@@ -190,6 +198,7 @@ Options:
   -j, --json              emit JSON
       --svg FILE          write the report as a self-contained SVG (- for stdout)
       --svg-base64        write that SVG base64-encoded to stdout
+      --svg-data-uri      write it as data:image/svg+xml;base64,... ready to paste
   -q, --quiet             suppress progress output
   -V, --version           print the version
   -h, --help              show this help
@@ -207,16 +216,29 @@ Notes:
 `, version.String(), strings.Join(mtr.Tags(), ", "), strings.Join(portal.Tags(), ", "))
 }
 
-// emitSVG writes the report as a picture when either SVG flag asked for one,
-// and reports whether it did. Both the demo and a real run go through it, so
-// the two cannot drift apart.
+// emitSVG writes the report as a picture when a flag asked for one, and reports
+// whether it took stdout. Writing to a file does not: stdout stays free for the
+// terminal report or the JSON document, so `--json --svg out.svg` yields both.
+// Both the demo and a real run go through it, so the two cannot drift apart.
 func emitSVG(o *options, report render.Report, findings []detect.Finding) (bool, error) {
-	switch {
-	case o.svgB64:
-		return true, render.SVGBase64(os.Stdout, report, findings)
-	case o.svgOut == "-":
+	// With --json the picture belongs inside the document, not next to it on
+	// the same stream; JSON() embeds it and this leaves stdout alone.
+	if (o.svgB64 || o.svgURI) && !o.jsonOut {
+		if o.svgURI {
+			if _, err := io.WriteString(os.Stdout, render.SVGDataURIPrefix); err != nil {
+				return true, err
+			}
+		}
+		if err := render.SVGBase64(os.Stdout, report, findings); err != nil {
+			return true, err
+		}
+		_, err := fmt.Fprintln(os.Stdout)
+		return true, err
+	}
+	switch o.svgOut {
+	case "-":
 		return true, render.SVG(os.Stdout, report, findings)
-	case o.svgOut == "":
+	case "":
 		return false, nil
 	}
 
@@ -234,7 +256,9 @@ func emitSVG(o *options, report render.Report, findings []detect.Finding) (bool,
 	}
 	// To stderr, so `--svg -` and a file path behave the same on stdout.
 	fmt.Fprintln(os.Stderr, "wrote", o.svgOut)
-	return true, nil
+	// The file took nothing from stdout, so whatever else was asked for still
+	// gets written there.
+	return false, nil
 }
 
 // runDemo prints a report built from invented data. It opens no sockets, so
@@ -263,6 +287,7 @@ func runDemo(o *options) error {
 		report.Reputation = nil
 	}
 
+	report.EmbedSVG = o.jsonOut && (o.svgB64 || o.svgURI)
 	if done, err := emitSVG(o, report, nil); done {
 		return err
 	}
@@ -413,6 +438,7 @@ func run(ctx context.Context, o *options) error {
 		TraceDetail:   o.detail,
 	}
 
+	report.EmbedSVG = o.jsonOut && (o.svgB64 || o.svgURI)
 	if done, err := emitSVG(o, report, findings); done {
 		return err
 	}

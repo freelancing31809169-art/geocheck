@@ -242,6 +242,7 @@ geocheck [options]
   -j, --json              emit JSON
       --svg FILE          write the report as a self-contained SVG (- for stdout)
       --svg-base64        write that SVG base64-encoded to stdout
+      --svg-data-uri      write it as data:image/svg+xml;base64,... ready to paste
   -q, --quiet             suppress progress output
       --demo              render a sample report from invented data
 ```
@@ -252,7 +253,8 @@ specific target, e.g. `-T cloudflare_dns,telegram`.
 
 ## JSON
 
-`--json` emits a stable, versioned document for scripting:
+`--json` emits a stable, versioned document for scripting. It is written
+compact, on one line — pipe it through `jq .` when you want to read it:
 
 ```sh
 geocheck --json | jq '.connectivity.targets[] | select(.verdict != "direct") | {name, verdict, rtt_ms}'
@@ -277,15 +279,51 @@ image instead.
 ```sh
 geocheck --svg report.svg          # to a file
 geocheck --svg -                   # to stdout
-geocheck --svg-base64              # base64, ready to paste or embed
-geocheck --svg-base64 | pbcopy     # macOS: straight to the clipboard
+geocheck --svg-base64              # bare base64
+geocheck --svg-data-uri            # the same, wrapped and ready to paste
+geocheck --svg-data-uri | pbcopy   # macOS: straight to the clipboard
 ```
 
-The base64 form is a `data:` URI away from being an `<img>`:
+`--svg-data-uri` writes what an `<img>` or a browser address bar takes as-is:
 
 ```html
-<img src="data:image/svg+xml;base64,PASTE_HERE">
+<img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0i...">
 ```
+
+### Both the data and the picture
+
+Two documents cannot share one stdout, so combining `--json` with a picture puts
+the picture **inside** the document rather than next to it:
+
+```sh
+geocheck --json --svg-data-uri > report.json
+
+jq -r .image.data report.json | base64 -d > report.svg
+jq -r '"data:\(.image.media_type);\(.image.encoding),\(.image.data)"' report.json
+```
+
+```json
+{
+  "schema": 1,
+  "identity": { "ipv4": "198.51.100.34", "...": "..." },
+  "connectivity": { "score": 92, "...": "..." },
+  "image": {
+    "format": "svg",
+    "media_type": "image/svg+xml",
+    "encoding": "base64",
+    "data": "PHN2ZyB4bWxucz0i..."
+  }
+}
+```
+
+The block above is shown laid out for reading; the real output is one compact
+line. The parts are separate fields rather than one pre-built URI so nothing is
+duplicated — a report carrying the picture twice would be 240 KB of mostly the
+same bytes. `image` is absent unless a picture was asked for.
+
+`--json --svg FILE` is the other useful pairing: the document goes to stdout and
+the picture to the file, neither competing for the stream. `--json --svg -` is
+refused, because that genuinely cannot be parsed.
 
 The document is **self-contained**: JetBrains Mono is embedded inside it, so
 there is nothing to fetch when it is displayed and it looks the same wherever it

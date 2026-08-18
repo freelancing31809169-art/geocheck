@@ -42,6 +42,9 @@ type Report struct {
 	MaskIP bool
 	// TraceDetail prints the full hop table for every target.
 	TraceDetail bool
+	// EmbedSVG asks the JSON document to carry the rendered picture as well,
+	// so a consumer that wants both gets one parseable stream instead of two.
+	EmbedSVG bool
 }
 
 // PrintFindings reports conditions that undermine the measurement itself.

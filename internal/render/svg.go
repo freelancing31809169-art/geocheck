@@ -100,6 +100,10 @@ func SVG(w io.Writer, r Report, findings []detect.Finding) error {
 	return err
 }
 
+// SVGDataURIPrefix is what turns the base64 below into something an <img> or a
+// browser address bar accepts directly.
+const SVGDataURIPrefix = "data:image/svg+xml;base64,"
+
 // SVGBase64 writes the same document base64-encoded, which is what a chat
 // window or a data: URI wants.
 func SVGBase64(w io.Writer, r Report, findings []detect.Finding) error {

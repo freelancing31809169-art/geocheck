@@ -3,11 +3,13 @@ package render
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/xml"
 	"io"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func demoSVG(t *testing.T) string {
@@ -167,5 +169,69 @@ func TestSVGColumnsAreConsecutive(t *testing.T) {
 	}
 	if col != len("ab cd ef") {
 		t.Errorf("line width = %d, want %d", col, len("ab cd ef"))
+	}
+}
+
+// TestJSONEmbedsTheImage covers the combination that exists because two
+// documents cannot share one stdout: asking for JSON and a picture at once
+// puts the picture inside the document.
+func TestJSONEmbedsTheImage(t *testing.T) {
+	r := DemoReport("test")
+	r.EmbedSVG = true
+
+	var buf bytes.Buffer
+	if err := JSON(&buf, r, nil, time.Unix(0, 0).UTC()); err != nil {
+		t.Fatalf("JSON: %v", err)
+	}
+
+	var doc struct {
+		Image *struct {
+			Format    string `json:"format"`
+			MediaType string `json:"media_type"`
+			Encoding  string `json:"encoding"`
+			Data      string `json:"data"`
+		} `json:"image"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("the document is not valid JSON: %v", err)
+	}
+	if doc.Image == nil {
+		t.Fatal("EmbedSVG was set but no image field was written")
+	}
+
+	if doc.Image.Format != "svg" || doc.Image.MediaType != "image/svg+xml" || doc.Image.Encoding != "base64" {
+		t.Errorf("image described as %+v", *doc.Image)
+	}
+
+	// The fields must be enough to build a data: URI without guessing.
+	uri := "data:" + doc.Image.MediaType + ";" + doc.Image.Encoding + "," + doc.Image.Data
+	if !strings.HasPrefix(uri, SVGDataURIPrefix) {
+		t.Errorf("assembled URI %q does not match the prefix the CLI writes", uri[:40])
+	}
+
+	svg, err := base64.StdEncoding.DecodeString(doc.Image.Data)
+	if err != nil {
+		t.Fatalf("embedded data is not base64: %v", err)
+	}
+
+	var direct bytes.Buffer
+	if err := SVG(&direct, r, nil); err != nil {
+		t.Fatalf("SVG: %v", err)
+	}
+	if !bytes.Equal(svg, direct.Bytes()) {
+		t.Errorf("embedded picture differs from the one --svg writes (%d vs %d bytes)",
+			len(svg), direct.Len())
+	}
+}
+
+// TestJSONOmitsTheImageByDefault keeps a 120 KB payload out of every ordinary
+// --json run.
+func TestJSONOmitsTheImageByDefault(t *testing.T) {
+	var buf bytes.Buffer
+	if err := JSON(&buf, DemoReport("test"), nil, time.Unix(0, 0).UTC()); err != nil {
+		t.Fatalf("JSON: %v", err)
+	}
+	if bytes.Contains(buf.Bytes(), []byte(`"image"`)) {
+		t.Error("the image was embedded without EmbedSVG being set")
 	}
 }

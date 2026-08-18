@@ -1,6 +1,8 @@
 package render
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"time"
@@ -32,6 +34,19 @@ type jsonReport struct {
 	Portal     *jsonPortal     `json:"connectivity_checks,omitempty"`
 	Access     []jsonAccess    `json:"stash_checks,omitempty"`
 	Path       *jsonPathReport `json:"connectivity,omitempty"`
+	Image      *jsonImage      `json:"image,omitempty"`
+}
+
+// jsonImage carries the rendered report as a picture. MediaType and Encoding
+// are spelled out rather than implied so a consumer can assemble a data: URI
+// straight from the fields:
+//
+//	data:<media_type>;<encoding>,<data>
+type jsonImage struct {
+	Format    string `json:"format"`
+	MediaType string `json:"media_type"`
+	Encoding  string `json:"encoding"`
+	Data      string `json:"data"`
 }
 
 type jsonIdentity struct {
@@ -270,9 +285,20 @@ func JSON(w io.Writer, r Report, findings []detect.Finding, now time.Time) error
 		out.Path = jsonPath(r)
 	}
 
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(out)
+	if r.EmbedSVG {
+		var svg bytes.Buffer
+		if err := SVG(&svg, r, findings); err != nil {
+			return err
+		}
+		out.Image = &jsonImage{
+			Format:    "svg",
+			MediaType: "image/svg+xml",
+			Encoding:  "base64",
+			Data:      base64.StdEncoding.EncodeToString(svg.Bytes()),
+		}
+	}
+
+	return json.NewEncoder(w).Encode(out)
 }
 
 func jsonReputationReport(info *reputation.Info, err error) *jsonReputation {
