@@ -319,8 +319,19 @@ jobs:
 
           assert_fails_with "curl or wget" "$(make_path sh uname printf)"
 
-          assert_fails_with "go install" \
-            "$(make_path sh uname printf curl sed head cut mktemp tar rm chmod)"
+          plat=$(make_path sh printf sed head cut mktemp tar gzip rm chmod)
+          # shellcheck disable=SC2016  # $1 belongs to the stub being written
+          printf '#!/bin/sh\ncase "$1" in\n  -s) echo Linux ;;\n  -m) echo armv7l ;;\nesac\n' \
+            > "$plat/uname"
+
+          cat > "$plat/curl" <<'CURL'
+          #!/bin/sh
+          printf '{"tag_name": "v9.9.9"}'
+          CURL
+          chmod +x "$plat/uname" "$plat/curl"
+
+          assert_fails_with "no published build" "$plat"
+          assert_fails_with "go install" "$plat"
 
   docker:
     name: Docker image
