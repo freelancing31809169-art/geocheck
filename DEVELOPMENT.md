@@ -154,10 +154,15 @@ This is why the container is a child process rather than an `exec`: nothing runs
 after `exec`, so the cleanup would never happen. The exit status is captured and
 re-raised by hand instead, and an `INT`/`TERM` trap covers Ctrl-C.
 
+Release assets carry **no version in their names** — `geocheck_linux_amd64.tar.gz`,
+`checksums.txt`. That is what makes
+`https://github.com/remnawave/geocheck/releases/latest/download/<name>` a
+permanent link: GitHub matches the name exactly and redirects to whichever
+release is current.
+
 Because macOS ships as a universal binary (`universal_binaries` in
-`.goreleaser.yaml`), its asset is `geocheck_<version>_darwin_all.tar.gz` rather
-than one per architecture. Changing that goreleaser setting means changing
-`platform_asset` in the launcher to match, or downloads start 404ing.
+`.goreleaser.yaml`), its asset is `geocheck_darwin_all.tar.gz` rather than one
+per architecture.
 
 It clears the screen before handing over, so the report starts at the top rather
 than under the pull output. It defers to `clear`, then `tput clear`, then a

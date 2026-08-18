@@ -85,8 +85,6 @@ fetch() {
 }
 
 platform_asset() {
-    asset_version=$1
-
     case "$(uname -s)" in
         Linux)  asset_os="linux" ;;
         Darwin) asset_os="darwin" ;;
@@ -101,7 +99,7 @@ platform_asset() {
 
     [ "$asset_os" = "darwin" ] && asset_arch="all"
 
-    printf 'geocheck_%s_%s_%s.tar.gz' "$asset_version" "$asset_os" "$asset_arch"
+    printf 'geocheck_%s_%s.tar.gz' "$asset_os" "$asset_arch"
 }
 
 run_download() {
@@ -114,15 +112,7 @@ run_download() {
         say "→ no container runtime; fetching the release binary"
     fi
 
-    tag=$(fetch "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
-        | sed -n 's/.*"tag_name" *: *"\([^"]*\)".*/\1/p' | head -1) || tag=""
-    [ -n "$tag" ] || die "could not find a release for $REPO.
-  If the repository is private or has no release yet, install one of:
-      docker            https://docs.docker.com/get-docker/
-      go install github.com/$REPO/cmd/geocheck@latest"
-
-    version=${tag#v}
-    asset=$(platform_asset "$version") \
+    asset=$(platform_asset) \
         || die "no published build for $(uname -s)/$(uname -m).
   Build from source instead:
       go install github.com/$REPO/cmd/geocheck@latest"
@@ -130,12 +120,12 @@ run_download() {
     tmp=$(mktemp -d 2>/dev/null || mktemp -d -t geocheck)
     trap 'rm -rf "$tmp"' EXIT INT TERM
 
-    base="https://github.com/$REPO/releases/download/$tag"
-    say "→ downloading $asset ($tag)"
-    fetch "$base/$asset" > "$tmp/$asset" || die "download failed: $base/$asset"
+    base="https://github.com/$REPO/releases/latest/download"
+    say "→ downloading $asset"
+    fetch "$base/$asset" > "$tmp/$asset" || die "could not download $asset from $REPO."
 
     if have sha256sum || have shasum; then
-        if fetch "$base/geocheck_${version}_checksums.txt" > "$tmp/checksums.txt" 2>/dev/null; then
+        if fetch "$base/checksums.txt" > "$tmp/checksums.txt" 2>/dev/null; then
             expected=$(sed -n "s/^\([0-9a-f]*\)  *$asset\$/\1/p" "$tmp/checksums.txt" | head -1)
             if [ -n "$expected" ]; then
                 if have sha256sum; then
