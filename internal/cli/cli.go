@@ -535,7 +535,7 @@ func tracePaths(
 		MaxTTL:     o.maxTTL,
 		Rounds:     o.rounds,
 		Timeout:    1500 * time.Millisecond,
-		Targets:    6,
+		Targets:    21,
 		Resolver:   stack.Resolver(),
 		ASN:        ar,
 		ReverseDNS: !o.noRDNS,
