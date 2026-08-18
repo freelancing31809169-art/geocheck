@@ -148,26 +148,44 @@ func checkResolverAddress(_ context.Context, _ Options) *Finding {
 	return nil
 }
 
-// checkOpenDNSIdentity asks OpenDNS to identify itself. The real resolver
-// answers with a fixed sentence; anything else means the query never arrived.
+// notAnOpenDNSResolver is the authoritative TXT record for which.opendns.com,
+// and the entire signal this check rests on.
+//
+// The name is answered two different ways. A genuine OpenDNS resolver
+// intercepts it internally and replies with its own identifier — "r3001.lon",
+// "r3007.ams". Every other resolver has to fetch the record from the
+// authoritative servers, where it reads this sentence. Getting it back from an
+// address that is supposed to *be* an OpenDNS resolver therefore proves the
+// query was answered by something else.
+const notAnOpenDNSResolver = "not an opendns resolver"
+
+// checkOpenDNSIdentity asks OpenDNS which of its servers answered.
 func checkOpenDNSIdentity(ctx context.Context, opts Options) *Finding {
 	answers, err := queryTXT(ctx, "208.67.222.222:53", "which.opendns.com.", dns.ClassINET, opts.Timeout)
 	if err != nil || len(answers) == 0 {
 		return nil // unreachable is not the same as intercepted
 	}
+	return openDNSFinding(answers)
+}
+
+// openDNSFinding is the decision, split from the query so it can be tested
+// against captured answers instead of the network.
+func openDNSFinding(answers []string) *Finding {
 	for _, a := range answers {
-		if strings.Contains(strings.ToLower(a), "i am an opendns resolver") {
-			return nil
+		if !strings.Contains(strings.ToLower(a), notAnOpenDNSResolver) {
+			continue
+		}
+		return &Finding{
+			ID:       "dns_hijack_opendns",
+			Title:    "Port 53 DNS is being intercepted",
+			Severity: Alert,
+			Detail: "208.67.222.222 was asked which OpenDNS server answered and replied " +
+				quote(a) + ". That is the record the public authoritative servers hold, " +
+				"not what an OpenDNS resolver returns, so the query was answered by " +
+				"something else on the path.",
 		}
 	}
-	return &Finding{
-		ID:       "dns_hijack_opendns",
-		Title:    "Port 53 DNS is being intercepted",
-		Severity: Alert,
-		Detail: "OpenDNS was asked to identify itself and replied " + quote(answers[0]) +
-			" instead of \"I am an OpenDNS resolver.\", which means something on the path " +
-			"answered in its place.",
-	}
+	return nil
 }
 
 // checkGoogleIDServer uses a query Google Public DNS deliberately does not
