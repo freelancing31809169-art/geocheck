@@ -110,10 +110,10 @@ of good peering gets below. What the excess above it buys you is information.
 | `intercepted`     | Something answered on the destination's behalf, far closer than the destination can possibly be.                               |
 | `unreachable`     | Nothing answered at all.                                                                                                       |
 
-All five of Telegram's data centres are measured by default. Which one serves
-you is fixed by where the account was registered, not by where you are, so a
-European user can legitimately be pinned to a US one – this shows what each
-would cost.
+Which Telegram data centre serves you is fixed by where the account was
+registered, not by where you are, so a European user can legitimately be pinned
+to a US one. The five data centres sit in only three networks, so the default
+set traces one per network — DC2 and DC5. Use `-T telegram` for all five.
 
 ## Usage
 
