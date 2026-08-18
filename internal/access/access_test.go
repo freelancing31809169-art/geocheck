@@ -137,7 +137,12 @@ func TestChecksAreWellFormed(t *testing.T) {
 }
 
 func TestRunSetsCheckAndTiming(t *testing.T) {
+	// The probe sleeps so that the elapsed time is unambiguously non-zero.
+	// Returning instantly made this test flaky: both clock readings could land
+	// in the same tick, Run would record a legitimate 0, and the assertion
+	// below would fail perhaps one run in six for no reason worth chasing.
 	probe := Check{ID: "x", Name: "X", Run: func(context.Context, Env) Result {
+		time.Sleep(time.Millisecond)
 		return Result{State: StateAvailable}
 	}}
 	got := Run(context.Background(), testEnv(t).Stack, netx.V4, []Check{probe}, 1)

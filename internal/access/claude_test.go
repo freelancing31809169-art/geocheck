@@ -19,6 +19,8 @@ const regionPage = `<!DOCTYPE html><html><head><title>Claude</title></head>
 <body><h1>Unfortunately, Claude isn't available here.</h1>
 <p>Claude is not yet available in your region.</p></body></html>`
 
+const claudeTestRegion = "XA"
+
 func TestClassifyClaude(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -77,12 +79,12 @@ func TestClassifyClaude(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := classifyClaude(c.status, c.body, "SE")
+			got := classifyClaude(c.status, c.body, claudeTestRegion)
 			if got.State != c.want {
 				t.Errorf("state = %v, want %v (detail %q)", got.State, c.want, got.Detail)
 			}
-			if got.Region != "SE" {
-				t.Errorf("region = %q, want SE", got.Region)
+			if got.Region != claudeTestRegion {
+				t.Errorf("region = %q, want %s", got.Region, claudeTestRegion)
 			}
 		})
 	}
@@ -118,7 +120,7 @@ func TestClassifyClaudeNeverGuessesBlocked(t *testing.T) {
 		{500, "internal error"},
 	}
 	for _, c := range inconclusive {
-		if got := classifyClaude(c.status, c.body, "SE"); got.State == StateBlocked {
+		if got := classifyClaude(c.status, c.body, claudeTestRegion); got.State == StateBlocked {
 			t.Errorf("status %d claimed a region block from an inconclusive response: %q",
 				c.status, got.Detail)
 		}

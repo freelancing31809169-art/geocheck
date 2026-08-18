@@ -21,6 +21,8 @@ func Checks() []Check {
 		netflix(),
 		claude(),
 		tiktok(),
+		gemini(),
+		notebookLM(),
 	}
 }
 
@@ -393,4 +395,130 @@ func itoa(n int) string {
 		b[i] = '-'
 	}
 	return string(b[i:])
+}
+
+// reGeminiRegion pulls the served country out of the configuration block that
+// Google's account bar embeds in every one of its pages. The code is ISO 3166-1
+// alpha-3 and sits at a fixed position in that array, so the two leading
+// numbers are matched loosely rather than pinned.
+var reGeminiRegion = regexp.MustCompile(`,\d+,\d+,200,"([A-Z]{3})"`)
+
+// geminiUnsupported are the countries where Google does not offer Gemini.
+var geminiUnsupported = map[string]bool{
+	"RUS": true,
+	"BLR": true,
+	"CHN": true,
+	"PRK": true,
+	"IRN": true,
+	"CUB": true,
+	"SYR": true,
+}
+
+// classifyGemini is separated from the request so the decision can be tested
+// against captured pages.
+func classifyGemini(status int, body string) Result {
+	if isChallenge(status, strings.ToLower(body)) {
+		return Result{
+			State:  StateError,
+			Detail: "Cloudflare challenged the request, so availability was never tested",
+		}
+	}
+	if status < 200 || status >= 400 {
+		return Result{State: StateError, Detail: "unexpected HTTP " + itoa(status)}
+	}
+
+	m := reGeminiRegion.FindStringSubmatch(body)
+	if m == nil {
+		return Result{
+			State:  StateError,
+			Detail: "could not read the served region from the page",
+		}
+	}
+
+	region := m[1]
+	if geminiUnsupported[region] {
+		return Result{State: StateBlocked, Region: region, Detail: "not offered in this country"}
+	}
+	return Result{State: StateAvailable, Region: region}
+}
+
+func gemini() Check {
+	return Check{
+		ID: "gemini_access", Name: "Gemini",
+		Run: func(ctx context.Context, env Env) Result {
+			resp, err := env.Stack.Do(ctx, env.Family, netx.Request{
+				URL:       "https://gemini.google.com/app",
+				UserAgent: browserUA,
+				Headers: map[string]string{
+					"Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+					"Accept-Language": "en-US,en;q=0.9",
+				},
+			})
+			if err != nil {
+				return Result{State: StateError, Detail: "request failed", Err: err}
+			}
+			return classifyGemini(resp.Status, resp.Text())
+		},
+	}
+}
+
+// classifyNotebookLM reads the answer out of where the request was sent rather
+// than out of a page. NotebookLM states the reason in the redirect itself —
+// `?location=unsupported` — which is a far better signal than anything its
+// sibling Gemini offers, and the reason this check needs no country list.
+//
+// A served region is redirected to a Google sign-in instead, because the
+// product needs an account. That is not a failure: reaching the sign-in is the
+// evidence that the region is served.
+func classifyNotebookLM(status int, finalURL, body string) Result {
+	if isChallenge(status, strings.ToLower(body)) {
+		return Result{
+			State:  StateError,
+			Detail: "Cloudflare challenged the request, so availability was never tested",
+		}
+	}
+
+	if strings.Contains(finalURL, "location=unsupported") {
+		return Result{State: StateBlocked, Detail: "not offered in this country"}
+	}
+
+	u, err := url.Parse(finalURL)
+	if err != nil || finalURL == "" {
+		return Result{State: StateError, Detail: "no destination to judge"}
+	}
+	switch {
+	case u.Host == "accounts.google.com",
+		strings.HasSuffix(u.Host, ".google.com") && strings.Contains(u.Path, "/login"):
+		return Result{State: StateAvailable, Detail: "sign-in required"}
+	}
+
+	if status >= 200 && status < 400 {
+		// Somewhere unexpected, but not the refusal. Better to say the
+		// destination was unrecognised than to read it as either verdict.
+		return Result{
+			State:  StateError,
+			Detail: "unexpected destination " + u.Host,
+		}
+	}
+	return Result{State: StateError, Detail: "unexpected HTTP " + itoa(status)}
+}
+
+func notebookLM() Check {
+	return Check{
+		ID: "notebooklm_access", Name: "NotebookLM",
+		Run: func(ctx context.Context, env Env) Result {
+			resp, err := env.Stack.Do(ctx, env.Family, netx.Request{
+				URL:       "https://notebooklm.google.com/",
+				UserAgent: browserUA,
+				Headers: map[string]string{
+					"Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+					"Accept-Language": "en-US,en;q=0.9",
+				},
+			})
+			if err != nil {
+				return Result{State: StateError, Detail: "request failed", Err: err}
+			}
+			return classifyNotebookLM(resp.Status, resp.FinalURL, resp.Text())
+		},
+	}
 }
