@@ -2,6 +2,7 @@ package geo
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"regexp"
 	"strings"
@@ -302,39 +303,30 @@ func deezer() Check {
 
 // reddit exchanges an anonymous device token for an access token, then asks
 // the federated GraphQL endpoint where it thinks the caller is.
+// reRedditCountry pulls the served country out of the chat widget's markup.
+var reRedditCountry = regexp.MustCompile(`country="([A-Za-z]{2})"`)
+
+const redditBlocked = "blocked by network security"
+
 func reddit() Check {
-	const androidUA = "Reddit/Version 2025.29.0/Build 2529021/Android 13"
 	return Check{
 		ID: "reddit", Name: "Reddit", Group: GroupServices, Kind: KindCountry,
 		Run: func(ctx context.Context, env *Env, f netx.Family) (string, error) {
-			tokenResp, err := env.Stack.Do(ctx, f, netx.Request{
-				Method:    http.MethodPost,
-				URL:       "https://www.reddit.com/auth/v2/oauth/access-token/loid",
-				UserAgent: androidUA,
-				Headers:   map[string]string{"Authorization": "Basic b2hYcG9xclpZdWIxa2c6"},
-				JSON:      `{"scopes":["email"]}`,
-			})
-			if err != nil {
-				return "", err
-			}
-			token := jsonx.String(tokenResp.Body, "access_token")
-			if token == "" {
-				return "", nil
-			}
-
 			resp, err := env.Stack.Do(ctx, f, netx.Request{
-				Method:    http.MethodPost,
-				URL:       "https://gql-fed.reddit.com",
-				UserAgent: androidUA,
-				Headers:   map[string]string{"Authorization": "Bearer " + token},
-				JSON: `{"operationName":"UserLocation","variables":{},"extensions":` +
-					`{"persistedQuery":{"version":1,"sha256Hash":` +
-					`"f07de258c54537e24d7856080f662c1b1268210251e5789c8c08f20d76cc8ab2"}}}`,
+				URL: "https://www.reddit.com/svc/shreddit/reddit-chat",
 			})
 			if err != nil {
 				return "", err
 			}
-			return jsonx.String(resp.Body, "data.userLocation.countryCode"), nil
+			body := resp.Text()
+			if strings.Contains(strings.ToLower(body), redditBlocked) {
+				return "", errors.New("blocked by Reddit's network security, " +
+					"which turns away hosting ranges regardless of country")
+			}
+			if m := reRedditCountry.FindStringSubmatch(body); m != nil {
+				return strings.ToUpper(m[1]), nil
+			}
+			return "", nil
 		},
 	}
 }
