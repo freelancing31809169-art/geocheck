@@ -10,15 +10,15 @@ Output docs/img/demo.gif
 
 Set Shell "bash"
 Set FontSize 14
-Set Width 1180
-Set Height 1120
+Set Width 1280
+Set Height 1810
 Set Padding 24
 Set Margin 24
 Set MarginFill "#181825"
 Set BorderRadius 12
 Set WindowBar Colorful
 Set Theme "Catppuccin Mocha"
-Set TypingSpeed 55ms
+Set TypingSpeed 15ms
 
 Hide
 Type "export PATH=/vhs/.vhs-bin:$PATH"
@@ -33,7 +33,7 @@ Enter
 Show
 
 Sleep 900ms
-Type "geocheck --demo"
+Type "geocheck --demo --no-ai --no-mtr"
 Sleep 600ms
 Enter
 Sleep 6s

@@ -15,10 +15,11 @@
 curl -fsSL https://geocheck.ing | sh
 ```
 
-<img src="https://raw.githubusercontent.com/remnawave/geocheck/main/docs/img/demo.gif" alt="geocheck producing a full report: address reputation, geolocation consensus, connectivity checks, path analysis and service availability" width="920">
+<img src="https://raw.githubusercontent.com/remnawave/geocheck/main/docs/img/demo.gif" alt="geocheck reporting an address: its reputation, what forty services think its country is, the operating-system connectivity checks, and which services will serve it" width="920">
 
 <sub>Recorded from <code>geocheck --demo</code>, which renders invented measurements in reserved
-documentation address space – so this animation publishes nobody's real address or route.</sub>
+documentation address space – so this animation publishes nobody's real address or route. The
+path analysis is <a href="#the-part-other-tools-skip">below</a>.</sub>
 
 </div>
 
@@ -92,7 +93,7 @@ because those invalidate everything above them.
 ## The part other tools skip
 
 <div align="center">
-<img src="https://raw.githubusercontent.com/remnawave/geocheck/main/docs/img/connectivity.gif" alt="the direct-connectivity table: per-target verdict, RTT, loss, hop count and the autonomous system the path ends in" width="920">
+<img src="https://raw.githubusercontent.com/remnawave/geocheck/main/docs/img/connectivity.gif" alt="the path analysis: for every target a verdict, round-trip time, loss, hop count and the autonomous system the path ends in" width="920">
 </div>
 
 Latency alone cannot tell you whether a connection is direct – a well-peered DSL
