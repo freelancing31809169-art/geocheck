@@ -52,6 +52,8 @@ type options struct {
 	quiet    bool
 	showVer  bool
 	demo     bool
+	svgOut   string
+	svgB64   bool
 }
 
 // Run executes the tool and returns a process exit code.
@@ -137,6 +139,8 @@ func parse(args []string) (*options, error) {
 	bind(&o.quiet, false, "suppress progress output", "q", "quiet")
 	bind(&o.showVer, false, "print the version and exit", "V", "version")
 	bind(&o.demo, false, "render a sample report from invented data", "demo")
+	bindStr(&o.svgOut, "", "write the report as an SVG to a file, or - for stdout", "svg")
+	bind(&o.svgB64, false, "write the report as a base64-encoded SVG to stdout", "svg-base64")
 
 	fs.Usage = usage
 	if err := fs.Parse(args); err != nil {
@@ -184,6 +188,8 @@ Options:
       --no-rdns           skip reverse DNS for hops
       --mask              mask the public address in the output
   -j, --json              emit JSON
+      --svg FILE          write the report as a self-contained SVG (- for stdout)
+      --svg-base64        write that SVG base64-encoded to stdout
   -q, --quiet             suppress progress output
   -V, --version           print the version
   -h, --help              show this help
@@ -199,6 +205,35 @@ Notes:
   Hop-by-hop tracing needs a raw socket. Without one geocheck still measures
   destination latency over TCP, and says so.
 `, version.String(), strings.Join(mtr.Tags(), ", "), strings.Join(portal.Tags(), ", "))
+}
+
+// emitSVG writes the report as a picture when either SVG flag asked for one,
+// and reports whether it did. Both the demo and a real run go through it, so
+// the two cannot drift apart.
+func emitSVG(o *options, report render.Report, findings []detect.Finding) (bool, error) {
+	switch {
+	case o.svgB64:
+		return true, render.SVGBase64(os.Stdout, report, findings)
+	case o.svgOut == "-":
+		return true, render.SVG(os.Stdout, report, findings)
+	case o.svgOut == "":
+		return false, nil
+	}
+
+	f, err := os.Create(o.svgOut)
+	if err != nil {
+		return true, err
+	}
+	if err := render.SVG(f, report, findings); err != nil {
+		f.Close()
+		return true, err
+	}
+	if err := f.Close(); err != nil {
+		return true, err
+	}
+	// To stderr, so `--svg -` and a file path behave the same on stdout.
+	fmt.Fprintln(os.Stderr, "wrote", o.svgOut)
+	return true, nil
 }
 
 // runDemo prints a report built from invented data. It opens no sockets, so
@@ -227,6 +262,9 @@ func runDemo(o *options) error {
 		report.Reputation = nil
 	}
 
+	if done, err := emitSVG(o, report, nil); done {
+		return err
+	}
 	if o.jsonOut {
 		return render.JSON(os.Stdout, report, nil, demoTimestamp)
 	}
@@ -374,6 +412,9 @@ func run(ctx context.Context, o *options) error {
 		TraceDetail:   o.detail,
 	}
 
+	if done, err := emitSVG(o, report, findings); done {
+		return err
+	}
 	if o.jsonOut {
 		return render.JSON(os.Stdout, report, findings, time.Now())
 	}

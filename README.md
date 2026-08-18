@@ -240,6 +240,8 @@ geocheck [options]
       --proxycheck-key K  proxycheck.io API key ($PROXYCHECK_API_KEY)
       --mask              mask the public address in the output
   -j, --json              emit JSON
+      --svg FILE          write the report as a self-contained SVG (- for stdout)
+      --svg-base64        write that SVG base64-encoded to stdout
   -q, --quiet             suppress progress output
       --demo              render a sample report from invented data
 ```
@@ -265,6 +267,44 @@ Top-level keys: `schema`, `tool`, `timestamp`, `duration_ms`, `identity`,
 
 `--demo --json` produces the same document from the sample data, which is a
 convenient fixture to develop against.
+
+## As a picture
+
+Pasting a terminal report into a chat window usually destroys it — the colours
+go, and the box drawing wraps into rubble. `--svg` renders the same report as an
+image instead.
+
+```sh
+geocheck --svg report.svg          # to a file
+geocheck --svg -                   # to stdout
+geocheck --svg-base64              # base64, ready to paste or embed
+geocheck --svg-base64 | pbcopy     # macOS: straight to the clipboard
+```
+
+The base64 form is a `data:` URI away from being an `<img>`:
+
+```html
+<img src="data:image/svg+xml;base64,PASTE_HERE">
+```
+
+The document is **self-contained**: JetBrains Mono is embedded inside it, so
+there is nothing to fetch when it is displayed and it looks the same wherever it
+is opened. That matters more than it sounds — the report is drawn almost
+entirely with box-drawing and block characters, and a viewer whose default
+monospace font lacks them shows broken frames. About 27 KB of the file is the
+font, subset to the characters the report can actually emit.
+
+Every run of text is placed by column number rather than by measuring it, so
+even a renderer that ignores embedded fonts keeps the columns aligned and only
+substitutes the glyphs. One such renderer is `rsvg-convert`: it ignores
+`@font-face` with a `data:` URI, where browsers honour it.
+
+Ligatures are disabled deliberately. JetBrains Mono would otherwise draw `->`
+and `--` as single glyphs, quietly rewriting hostnames and flag names in a
+picture people read as a transcript.
+
+`--demo --svg` renders the sample report instead of measuring anything, which
+is a quick way to see the output before running a real check.
 
 ## Contributing
 
