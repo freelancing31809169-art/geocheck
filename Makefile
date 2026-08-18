@@ -61,11 +61,17 @@ cover: ## Run tests and open a coverage report
 	go tool cover -func=coverage.out | tail -1
 
 .PHONY: lint
-lint: ## Run golangci-lint if present, otherwise vet
+lint: ## Run golangci-lint, via docker when it is not installed
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		golangci-lint run ./...; \
+	elif command -v docker >/dev/null 2>&1; then \
+		echo "golangci-lint not installed; running it in docker"; \
+		docker run --rm -v "$(PWD):/app" -w /app \
+			golangci/golangci-lint:latest golangci-lint run --timeout=5m; \
 	else \
-		echo "golangci-lint not found, falling back to go vet"; go vet ./...; \
+		echo "error: neither golangci-lint nor docker is available."; \
+		echo "  install one, or run 'go vet ./...' knowing it checks far less."; \
+		exit 1; \
 	fi
 
 .PHONY: fmt

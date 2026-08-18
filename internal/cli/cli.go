@@ -225,7 +225,8 @@ func emitSVG(o *options, report render.Report, findings []detect.Finding) (bool,
 		return true, err
 	}
 	if err := render.SVG(f, report, findings); err != nil {
-		f.Close()
+		_ = f.Close()
+		_ = os.Remove(o.svgOut)
 		return true, err
 	}
 	if err := f.Close(); err != nil {
